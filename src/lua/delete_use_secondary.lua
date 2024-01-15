@@ -1,20 +1,20 @@
 
-
-
+-- basically require
 require("oltp_common")
 
--- cmdline:
-
+-- add some cmdline:
 sysbench.cmdline.options.secondary_start = 
     {"Secondary index begin. Must be positive", -1}
 sysbench.cmdline.options.secondary_end = 
     {"Must be positive And larger than where secondary start", -1}
 sysbench.cmdline.options.delta =
     {"Use for make range for delete statement", 1000}
+sysbench.cmdline.options.threshold = 
+    {"Limit rate of table_size not delete to many rows", 0.3} 
 
 
--- create table: rewrite create table function
--- compare with the one in oltp_common, only change the usage of secondary
+-- create table: rewrite create table function in oltp_common
+-- do some special options for secondary
 function create_table(drv, con, table_num)
    assert(sysbench.opt.secondary_start >= 0, "to run this test, secondary_start must be selected and be positive" .. "")
    assert(sysbench.opt.secondary_end >= 0, "to run this test, secondary_end must be selected and be positive" .. "")
@@ -90,12 +90,12 @@ CREATE TABLE sbtest%d(
       -- here the range of secondary we change
       if (sysbench.opt.auto_inc) then
          query = string.format("(%d, '%s', '%s')",
-                               sysbench.rand.default(sysbench.opt.secondary_start, sysbench.opt.secondary_end),
+                               sysbench.rand.uniform(sysbench.opt.secondary_start, sysbench.opt.secondary_end),
                                c_val, pad_val)
       else
          query = string.format("(%d, %d, '%s', '%s')",
                                i,
-                               sysbench.rand.default(sysbench.opt.secondary_start, sysbench.opt.secondary_end),
+                               sysbench.rand.uniform(sysbench.opt.secondary_start, sysbench.opt.secondary_end),
                                c_val, pad_val)
       end
 
@@ -118,7 +118,7 @@ end
 -- prepare for stmt
 function prepare_for_each_table()
    for t = 1, sysbench.opt.tables do
-      stmt[t].delete_use_secondary = con:prepare(string.format("DELETE FROM sbtest%u WHERE k BETWEEN ? AND ?",t))
+      stmt[t].delete_use_secondary = con:prepare(string.format("DELETE /*+ NO_MRR(sbtest%u) */ FROM sbtest%u WHERE k BETWEEN ? AND ? LIMIT %u", t, t, sysbench.opt.threshold * sysbench.opt.table_size))
 
       param[t].delete_use_secondary = {}
       param[t].delete_use_secondary[1] = stmt[t].delete_use_secondary:bind_create(sysbench.sql.type.INT)
@@ -133,7 +133,7 @@ function prepare_statements()
   prepare_for_each_table()
 end
 
-
+-- do event
 function event()
    local iTable = sysbench.rand.uniform(1, sysbench.opt.tables)
    local iSecond = sysbench.rand.uniform(sysbench.opt.secondary_start, sysbench.opt.secondary_end - sysbench.opt.delta)
