@@ -268,8 +268,8 @@ local stmt_defs = {
       "UPDATE sbtest%u SET k=k+1 WHERE id=?",
       t.INT},
    non_index_updates = {
-      "UPDATE sbtest%u SET c=? WHERE id=?",
-      {t.CHAR, 120}, t.INT},
+      "UPDATE sbtest%u SET c= (case id when ? then ? when ? then ? when ? then ? when ? then ? when ? then ? when ? then ? when ? then ? when ? then ? when ? then ? when ? then ?  end) where id in (?,?,?,?,?,?,?,?,?,?)",
+      {t.CHAR, 120}, t.INT, {t.CHAR, 120},  t.INT, {t.CHAR, 120},  t.INT, {t.CHAR, 120},  t.INT, {t.CHAR, 120},  t.INT, {t.CHAR, 120},  t.INT, {t.CHAR, 120},  t.INT, {t.CHAR, 120},  t.INT, {t.CHAR, 120},  t.INT, {t.CHAR, 120},  t.INT, t.INT, t.INT, t.INT, t.INT, t.INT, t.INT, t.INT, t.INT, t.INT },
    deletes = {
       "DELETE FROM sbtest%u WHERE id=?",
       t.INT},
@@ -468,11 +468,17 @@ end
 
 function execute_non_index_updates()
    local tnum = get_table_num()
-
+   local ids = {}
    for i = 1, sysbench.opt.non_index_updates do
-      param[tnum].non_index_updates[1]:set_rand_str(c_value_template)
-      param[tnum].non_index_updates[2]:set(get_id())
-
+      for j = 0, 9 do
+         param[tnum].non_index_updates[2*j + 1]:set_rand_str(c_value_template)
+         id = get_id()
+         param[tnum].non_index_updates[2*j + 2]:set(id)
+         ids[j] = id
+      end
+      for j = 0, 9 do
+         param[tnum].non_index_updates[20 + j]:set(ids[j])
+      end
       stmt[tnum].non_index_updates:execute()
    end
 end
